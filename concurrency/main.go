@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/federicoleon/golang-microservices/src/api/domain/repositories"
+	"bufio"
 	"fmt"
 	"os"
-	"bufio"
-	"github.com/federicoleon/golang-microservices/src/api/utils/errors"
-	"github.com/federicoleon/golang-microservices/src/api/services"
 	"sync"
+
+	"github.com/federicoleon/golang-microservices/src/api/domain/repositories"
+	"github.com/federicoleon/golang-microservices/src/api/services"
+	"github.com/federicoleon/golang-microservices/src/api/utils/errors"
 )
 
 var (
@@ -47,11 +48,16 @@ func main() {
 	fmt.Println(fmt.Sprintf("about to process %d requests", len(requests)))
 
 	input := make(chan createRepoResult)
+	// throtelling limit on the github due to rate limit
 	buffer := make(chan bool, 10)
 	var wg sync.WaitGroup
 
 	go handleResults(&wg, input)
-
+	// create 10 request and wait for the buffered channel to be read by some one
+	// first 10 go routines are created and blocks on 11th one
+	// if buffered channels were not used here it keep creating 36000(entiries in the text file) go routines, which wont
+	// be a issue, but there will be a rate limit on github.com
+	// find the rate limit value calculate and keet the value for buffered channel accordingly
 	for _, request := range requests {
 		buffer <- true
 		wg.Add(1)
@@ -83,5 +89,11 @@ func createRepo(buffer chan bool, output chan createRepoResult, request reposito
 		Result:  result,
 		Error:   err,
 	}
+
+	// buffer channel read, to make wake way for other goroutines to be created
+	// if not read the buffer channelon L:59 will be blocked
+	// this function is run on a go routine to make a request to github.com individually
+	// once the go routine complets, it reads from buffer making it empty, and L:59 adds another makes the buffer full
+	// blocks once again until it being read by other goroutines.
 	<-buffer
 }

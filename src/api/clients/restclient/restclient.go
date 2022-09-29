@@ -1,11 +1,11 @@
 package restclient
 
 import (
-	"net/http"
-	"encoding/json"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 var (
